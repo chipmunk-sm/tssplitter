@@ -324,15 +324,15 @@ bool h264::parse_SPS(uint8_t* buf, int32_t len)
     int32_t  levelIdc = bs.readBits(8);
     uint32_t seqParameterSetId = bs.readGolombUE(9);
 
-    uint32_t i = 0;
-    while (h264_lev2cpbsize[i][0] != -1)
+    uint32_t index = 0;
+    while (h264_lev2cpbsize[index][0] != -1)
     {
-        if (h264_lev2cpbsize[i][0] >= levelIdc)
+        if (h264_lev2cpbsize[index][0] >= levelIdc)
         {
-            cbpSize = h264_lev2cpbsize[i][1];
+            cbpSize = h264_lev2cpbsize[index][1];
             break;
         }
-        i++;
+        index++;
     }
 
     if (cbpSize < 0)
