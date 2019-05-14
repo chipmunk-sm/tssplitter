@@ -22,9 +22,9 @@ AVContext::AVContext(TsParser& parser, const int64_t& pos, uint16_t channel)
     hasPayload_(false),
     payloadUnitStart_(false),
     discontinuity_(false),
-    payload_(NULL),
+    payload_(nullptr),
     payloadLen_(0),
-    package_(NULL),
+    package_(nullptr),
     csMutex_(new QMutex())
 {
     memset(avBuf_, 0, sizeof(avBuf_));

@@ -82,7 +82,7 @@ int32_t AAC::findHeaders(uint8_t* buf, int32_t bufSize)
 
             BitStream bs(bufPtr, 16 * 8);
             bs.skipBits(11);
-            frameSize_ = bs.readBits(13) + 3;
+            frameSize_ = static_cast<int32_t>(bs.readBits(13)) + 3;
             if (!parseLATMAudioMuxElement(&bs))
                 return 0;
 
@@ -106,17 +106,17 @@ int32_t AAC::findHeaders(uint8_t* buf, int32_t bufSize)
             bs.skipBits(15);
 
             // check if CRC is present, means header is 9 byte long
-            int32_t noCrc = bs.readBits(1);
+            auto noCrc = bs.readBits(1);
             if (noCrc == 0 && bufSize < 9)
                 return -1;
 
             bs.skipBits(2); // profile
-            int32_t sampleRateIndex = bs.readBits(4);
+            auto sampleRateIndex = bs.readBits(4);
             bs.skipBits(1); // private
-            channels_ = bs.readBits(3);
+            channels_ = static_cast<int32_t>(bs.readBits(3));
             bs.skipBits(4);
 
-            frameSize_ = bs.readBits(13);
+            frameSize_ = static_cast<int32_t>(bs.readBits(13));
             sampleRate_ = aacSampleRates[sampleRateIndex & 0x0E];
 
             esFoundFrame_ = true;
@@ -138,10 +138,10 @@ bool AAC::parseLATMAudioMuxElement(BitStream *bs)
 
 void AAC::readStreamMuxConfig(BitStream *bs)
 {
-    int32_t audioMuxVersion = bs->readBits(1);
+    auto audioMuxVersion = bs->readBits(1);
     audioMuxVersion_A = 0;
     if (audioMuxVersion != 0)
-        audioMuxVersion_A = bs->readBits(1);
+        audioMuxVersion_A = static_cast<int32_t>(bs->readBits(1));
 
     if (audioMuxVersion_A != 0)
         return;
@@ -167,7 +167,7 @@ void AAC::readStreamMuxConfig(BitStream *bs)
         return;
 
     // these are not needed... perhaps
-    frameLengthType_ = bs->readBits(3);
+    frameLengthType_ = static_cast<int32_t>(bs->readBits(3));
     switch (frameLengthType_)
     {
     case 0:
@@ -192,7 +192,7 @@ void AAC::readStreamMuxConfig(BitStream *bs)
         int32_t esc;
         do
         {
-            esc = bs->readBits(1);
+            esc = static_cast<int32_t>(bs->readBits(1));
             bs->skipBits(8);
         } while (esc);
     }
@@ -204,26 +204,26 @@ void AAC::readStreamMuxConfig(BitStream *bs)
 
 void AAC::readAudioSpecificConfig(BitStream *bs)
 {
-    int32_t aot = bs->readBits(5);
+    int32_t aot = static_cast<int32_t>(bs->readBits(5));
     if (aot == 31)
-        aot = 32 + bs->readBits(6);
+        aot = 32 + static_cast<int32_t>(bs->readBits(6));
 
-    int32_t sampleRateIndex = bs->readBits(4);
+    int32_t sampleRateIndex = static_cast<int32_t>(bs->readBits(4));
 
     if (sampleRateIndex == 0xf)
-        sampleRate_ = bs->readBits(24);
+        sampleRate_ = static_cast<int32_t>(bs->readBits(24));
     else
         sampleRate_ = aacSampleRates[sampleRateIndex & 0xf];
 
-    channels_ = bs->readBits(4);
+    channels_ = static_cast<int32_t>(bs->readBits(4));
 
     if (aot == 5)
     { // AOT_SBR
         if (bs->readBits(4) == 0xf) // extensionSamplingFrequencyIndex
             bs->skipBits(24);
-        aot = bs->readBits(5); // this is the main object type (i.e. non-extended)
+        aot = static_cast<int32_t>(bs->readBits(5)); // this is the main object type (i.e. non-extended)
         if (aot == 31)
-            aot = 32 + bs->readBits(6);
+            aot = 32 + static_cast<int32_t>(bs->readBits(6));
     }
 
     if (aot != 2)
