@@ -1,3 +1,7 @@
+TEMPLATE = app
+TARGET = tssplitter
+QT += core gui widgets
+CONFIG += c++17
 
 HEADERS += ./bitstream.h \
     ./ts_aac.h \
