@@ -1,0 +1,7 @@
+/.vs
+/tmp
+/Debug
+/Release
+*.user
+/x64
+/.qmake.stash

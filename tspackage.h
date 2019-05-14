@@ -1,5 +1,5 @@
-#ifndef __tspackage_h__
-#define __tspackage_h__
+#ifndef TSPACKAGE_H
+#define TSPACKAGE_H
 
 #include "tstable.h"
 #include "tsstream.h"
@@ -13,39 +13,42 @@ enum PACKAGE_TYPE
 
 struct TsPackage
 {
-    quint16      pid;
-    quint8       continuity;
+    uint16_t      pid;
+    uint8_t       continuity;
     PACKAGE_TYPE packageType;
-    quint16      channel;
+    uint16_t      channel;
     bool         waitUnitStart;
     bool         hasStreamData;
     bool         streaming;
     TsStream*    pStream;
     TsTable      packageTable;
 
-    TsPackage() 
-        : pid(0xffff), 
-        continuity(0xff), 
-        packageType(PACKAGE_TYPE_UNKNOWN), 
-        channel(0), 
-        waitUnitStart(true), 
-        hasStreamData(false), 
-        streaming(false), 
-        pStream(NULL), 
+    TsPackage()
+        : pid(0xffff),
+        continuity(0xff),
+        packageType(PACKAGE_TYPE_UNKNOWN),
+        channel(0),
+        waitUnitStart(true),
+        hasStreamData(false),
+        streaming(false),
+        pStream(nullptr),
         packageTable()
-    {}
+    {
+    }
 
     ~TsPackage(void)
-    { if( pStream != NULL ) delete pStream; }
+    {
+        if (pStream != nullptr) delete pStream;
+    }
 
     void reset()
     {
         continuity = 0xff;
         waitUnitStart = true;
         packageTable.reset();
-        if( pStream != NULL )
+        if (pStream != nullptr)
             pStream->reset();
     }
 };
 
-#endif // __tspackage_h__
+#endif // TSPACKAGE_H

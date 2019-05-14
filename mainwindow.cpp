@@ -1,155 +1,250 @@
-#include "resource.h"
-#include "mainwindow.h"
-#include "infotreemodel.h"
 
+#include "mainwindow.h"
+
+#include <QStandardPaths>
 #include <QtWidgets>
 
-//////////////////////////////////////////////////////////
-MainWindow::MainWindow()
-    : guardParsers_(new QMutex())
+MainWindow::MainWindow(QWidget *parent)
+    : QWidget(parent)
+    , m_error(new QTextEdit(this))
+    , m_treeView( new QTreeView(this))
+    , m_progress(new QProgressBar(this))
+    , m_buttonOpenFile(new QPushButton(tr("Select file(s)"), this))
+    , m_lock(new QMutex())
 {
-    // initialize global objects
+    setWindowTitle(tr("TS Streams Extractor"));
+
+    setWindowModality(Qt::WindowModality::ApplicationModal);
+    setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
+    setAcceptDrops(true);
+
     qRegisterMetaType<STREAM_INFO>("STREAM_INFO");
-    Resources::Init();
 
-    // setup the main dialog
-    setup();
-    setGeometry( Resources::desktopX*0.3, 
-                 Resources::desktopY*0.2, 
-                 Resources::desktopX*0.5,
-                 Resources::desktopY*0.3 );
-    show();
-    setWindowTitle(tr("MPEG-TS Streams Extractor"));
-}
+    // tree
+    //m_treeView->setModel(new QStandardItemModel(0, 0));
+    m_treeView->setRootIsDecorated(true);
+    m_treeView->setSelectionMode(QTreeView::SingleSelection);
+    m_treeView->setAnimated(true);
+    m_treeView->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+    m_treeView->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
+    m_treeView->setSortingEnabled(false);
+    m_treeView->setAlternatingRowColors(true);
+    m_treeView->header()->setSortIndicator(0, Qt::AscendingOrder);
+    m_treeView->header()->setDefaultAlignment(Qt::AlignVCenter | Qt::AlignHCenter);
+    m_treeView->setEditTriggers(QAbstractItemView::NoEditTriggers);
 
-void MainWindow::setup()
-{
-    QVBoxLayout* vlayout = new QVBoxLayout();
-    QGroupBox* group = new QGroupBox();
-    QHBoxLayout* hlayout = new QHBoxLayout();
+    // progress
+    m_progress->setRange(0, 100);
+    m_progress->setFixedHeight(26);
+    m_progress->setTextVisible(true);
+    m_progress->setVisible(false);
 
-    btnOpenFile_ = new QPushButton(this);
-    btnOpenFile_->setIcon(QIcon(*Resources::pxOpenfile));
-    btnOpenFile_->setToolTip(tr("Choose a mpeg-ts file(s)"));
-    btnOpenFile_->setFixedSize(36,36);
-    btnOpenFile_->setIconSize(QSize(35,34));
-    QObject::connect(btnOpenFile_, SIGNAL(clicked()), this, SLOT(onOpenFiles()));
-    hlayout->addWidget(btnOpenFile_, 0, Qt::AlignLeft);
+    // open
+    m_buttonOpenFile->setDefault(true);
 
-    QLabel* label = new QLabel(tr(" Add the mpeg-ts file(s) for extraction of streams with audio, video, subtitles, etc "));
-    hlayout->addWidget(label, 5, Qt::AlignCenter);
+    // layout
+    auto vlayout = new QVBoxLayout();
+    vlayout->addWidget(m_treeView);
 
-    label->setFrameStyle(QFrame::Panel|QFrame::Sunken);
-    label->setFixedHeight(26);
-    group->setLayout(hlayout);
-    vlayout->addWidget(group);
+    vlayout->addWidget(m_error);
 
-    treeModel_ = new InfoTreeModel(this);
-    treeView_ = new QTreeView(this);
-    treeView_->setModel(treeModel_);
-    treeView_->header()->hide();
-    treeModel_->setView(treeView_);
-    vlayout->addWidget(treeView_);
+    auto hlayout = new QHBoxLayout();
+    hlayout->addWidget(m_progress);
+    hlayout->addWidget(m_buttonOpenFile, 0, Qt::AlignLeft);
+    hlayout->setContentsMargins(1, 1, 1, 1);
+    hlayout->setMargin(1);
+    hlayout->setSpacing(1);
 
-    progress_ = new QProgressBar(this);
-    progress_->setRange(0,100);
-    progress_->setFixedHeight(26);
-    progress_->setTextVisible(true);
-    progress_->setVisible(false);
-    vlayout->addWidget(progress_);
+    vlayout->addLayout(hlayout);
+    vlayout->setMargin(1);
+    vlayout->setContentsMargins(1, 1, 1, 1);
+    vlayout->setSpacing(1);
 
-    vlayout->setAlignment(Qt::AlignTop);
     setLayout(vlayout);
+
+    // connect
+    QObject::connect(m_buttonOpenFile, &QPushButton::clicked, this, &MainWindow::onOpenFiles);
+
+#if defined (Q_OS_ANDROID)
+    resize(QApplication::desktop()->availableGeometry(this).size());
+#else
+    resize(QApplication::desktop()->availableGeometry(this).size() / 2);
+#endif
 }
 
-void MainWindow::onOpenFiles()
+MainWindow::~MainWindow()
 {
-    QStringList tsFiles = QFileDialog::getOpenFileNames(this, tr("Choose a mpeg-ts file"), "","mpeg-ts (*.ts *.tp *.m2ts)");
-    QStringList::const_iterator It = tsFiles.begin();
+    QMutexLocker g(m_lock.data());
+    for (auto & item : m_parsersMap)
+        delete item.second;
+    m_parsersMap.clear();
+}
 
-    for(; It != tsFiles.end(); ++It) 
+void MainWindow::OpenFiles(const QStringList & tsFiles)
+{
+    m_treeView->setModel(new QStandardItemModel(0, 1));
+
+    auto model = reinterpret_cast<QStandardItemModel*>(m_treeView->model());
+    model->setHorizontalHeaderLabels(QStringList() << QObject::tr("info"));
+
+    auto root = model->invisibleRootItem();
+
+    for (const auto &path : tsFiles)
     {
-        const QString& path = *It;
-        if( path.isEmpty() || treeModel_->isAdded(path) ) 
+
+        if (path.isEmpty())
             continue;
 
         TsParser* parser = new TsParser(path, this);
-        QObject::connect(parser, SIGNAL(streamFound(STREAM_INFO)), this, SLOT(onStreamFound(STREAM_INFO)), Qt::DirectConnection);
-        QObject::connect(parser, SIGNAL(notifyStart(qint32,TsParser)), this, SLOT(onNotifyStart(qint32,TsParser)), Qt::DirectConnection);
-        QObject::connect(parser, SIGNAL(notifyDone(qint32,qint32)), this, SLOT(onNotifyDone(qint32,qint32)), Qt::QueuedConnection);
-        QObject::connect(parser, SIGNAL(notifyError(QString)), this, SLOT(onNotifyError(QString)), Qt::QueuedConnection);
+        QObject::connect(parser, &TsParser::streamFound, this, &MainWindow::onStreamFound, Qt::DirectConnection);
+        QObject::connect(parser, &TsParser::notifyStart, this, &MainWindow::onNotifyStart, Qt::DirectConnection);
+        QObject::connect(parser, &TsParser::notifyDone, this, &MainWindow::onNotifyDone, Qt::QueuedConnection);
+        QObject::connect(parser, &TsParser::notifyError, this, &MainWindow::onNotifyError, Qt::QueuedConnection);
 
-        treeModel_->addSourceTs(path);
-        if( !parser->start() )
+        root->appendRow(new QStandardItem(path));
+
+        if (!parser->start())
             delete parser;
     }
 }
 
-static inline int streamIdentifier(qint32 compositionId, qint32 ancillaryId)
+void MainWindow::onOpenFiles()
 {
-    return ((compositionId & 0xff00) >> 8)
-            | ((compositionId & 0xff) << 8)
-            | ((ancillaryId & 0xff00) << 16)
-            | ((ancillaryId & 0xff) << 24);
+
+    QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+
+    auto defFolder = settings.value(QLatin1String("DEFAULT_FOLDER")).toString();
+
+    if (defFolder.isEmpty() || !QDir(defFolder).exists())
+    {
+        for (auto &itemLoc : QStandardPaths::standardLocations(QStandardPaths::DocumentsLocation))
+        {
+            if (itemLoc.isEmpty())
+                continue;
+            if (QDir(itemLoc).exists())
+            {
+                defFolder = itemLoc;
+                break;
+            }
+        }
+    }
+
+    QStringList tsFiles = QFileDialog::getOpenFileNames(this, tr("Select file(s)"), defFolder,
+        QLatin1String("TS (") + m_supportedExt + QLatin1String(")"));
+
+    if (tsFiles.size())
+    {
+        const auto path = QFileInfo(tsFiles.front()).path();
+        settings.setValue(QLatin1String("DEFAULT_FOLDER"), path);
+    }
+    else
+    {
+        return;
+    }
+
+    OpenFiles(tsFiles);
 }
 
-void MainWindow::onStreamFound(const STREAM_INFO& streamInfo)
+static inline int streamIdentifier(int32_t compositionId, int32_t ancillaryId)
 {
-    treeModel_->addStreamInfo(streamInfo);
+    return ((compositionId & 0xff00) >> 8)
+        | ((compositionId & 0xff) << 8)
+        | ((ancillaryId & 0xff00) << 16)
+        | ((ancillaryId & 0xff) << 24);
+}
 
-/*
-    sprintf_s(info, 5000, "dump stream infos for channel %u PID %.4x\n", channel, es->pid_);
-    sprintf_s(info, 5000, "  Codec name     : %s\n", es->getStreamCodec().toStdString().c_str());
-    sprintf_s(info, 5000, "  Language       : %s\n", es->streamInfo_.language);
-    sprintf_s(info, 5000, "  Identifier     : %.8x\n", streamIdentifier(es->streamInfo_.compositionId, es->streamInfo_.ancillaryId));
-    sprintf_s(info, 5000, "  FPS scale      : %d\n", es->streamInfo_.fpsScale);
-    sprintf_s(info, 5000, "  FPS rate       : %d\n", es->streamInfo_.fpsRate);
-    sprintf_s(info, 5000, "  Interlaced     : %s\n", (es->streamInfo_.interlaced ? "true" : "false"));
-    sprintf_s(info, 5000, "  Height         : %d\n", es->streamInfo_.height);
-    sprintf_s(info, 5000, "  Width          : %d\n", es->streamInfo_.width);
-    sprintf_s(info, 5000, "  Aspect         : %3.3f\n", es->streamInfo_.aspect);
-    sprintf_s(info, 5000, "  Channels       : %d\n", es->streamInfo_.channels);
-    sprintf_s(info, 5000, "  Sample rate    : %d\n", es->streamInfo_.sampleRate);
-    sprintf_s(info, 5000, "  Block align    : %d\n", es->streamInfo_.blockAlign);
-    sprintf_s(info, 5000, "  Bit rate       : %d\n", es->streamInfo_.bitRate);
-    sprintf_s(info, 5000, "  Bit per sample : %d\n", es->streamInfo_.bitsPerSample);
-    */
+void MainWindow::onStreamFound(const STREAM_INFO& streamInfo, TsParser* self)
+{
+    auto model = reinterpret_cast<QStandardItemModel*>(m_treeView->model());
+    const auto srcName = self->getSourceName();
+    auto items = model->findItems(srcName, Qt::MatchFixedString, 0);
+    if (items.size() != 1)
+        return;
+
+    auto item = items.front();
+
+    auto subitem = new QStandardItem(QString("channel %1 PID %2").arg(streamInfo.channel).arg(streamInfo.pid, 4, 16));
+    item->appendRow(subitem);
+
+    subitem->appendRow(new QStandardItem(QString("Codec name     : %1").arg(streamInfo.codecName)));
+    subitem->appendRow(new QStandardItem(QString("Language       : %1").arg(streamInfo.language)));
+    subitem->appendRow(new QStandardItem(QString("Identifier     : %1")
+          .arg(streamIdentifier(streamInfo.compositionId, streamInfo.ancillaryId), 8, 16)));
+    subitem->appendRow(new QStandardItem(QString("FPS scale      : %1").arg(streamInfo.fpsScale)));
+    subitem->appendRow(new QStandardItem(QString("FPS rate       : %1").arg(streamInfo.fpsRate)));
+    subitem->appendRow(new QStandardItem(QString("Interlaced     : %1").arg((streamInfo.interlaced ? "true" : "false"))));
+    subitem->appendRow(new QStandardItem(QString("Height         : %1").arg(streamInfo.height)));
+    subitem->appendRow(new QStandardItem(QString("Width          : %1").arg(streamInfo.width)));
+    subitem->appendRow(new QStandardItem(QString("Aspect         : %1").arg(streamInfo.aspect, 0, 'f', 2)));
+    subitem->appendRow(new QStandardItem(QString("Channels       : %1").arg(streamInfo.channels)));
+    subitem->appendRow(new QStandardItem(QString("Sample rate    : %1").arg(streamInfo.sampleRate)));
+    subitem->appendRow(new QStandardItem(QString("Block align    : %1").arg(streamInfo.blockAlign)));
+    subitem->appendRow(new QStandardItem(QString("Bit rate       : %1").arg(streamInfo.bitRate)));
+    subitem->appendRow(new QStandardItem(QString("Bit per sample : %1").arg(streamInfo.bitsPerSample)));
+
 }
 
 void MainWindow::onNotifyError(const QString& info)
 {
-    QMessageBox(QMessageBox::Warning, tr("Error"), info, QMessageBox::Close).exec();
+    m_error->append(info + "\n");
 }
 
-void MainWindow::onNotifyStart(qint32 threadId, const TsParser& parser)
+void MainWindow::onNotifyStart(Qt::HANDLE threadId, TsParser *parser)
 {
-    QMutexLocker g(guardParsers_.data());
-    parsersMap_.insert(threadId, const_cast<TsParser*>(&parser));
+    QMutexLocker g(m_lock.data());
+    m_parsersMap[threadId] = parser;
 }
 
-void MainWindow::onNotifyDone(qint32 percent, qint32 threadId)
+void MainWindow::onNotifyDone(int32_t percent, Qt::HANDLE threadId)
 {
     // on first destroy parser when 101%
-    static qint32 lastP = percent;
+    static int32_t lastP = percent;
 
-    if( percent == 101 ) {
-        QMutexLocker g(guardParsers_.data());
-        ParsersMapT::iterator It = parsersMap_.find(threadId);
-        if( It != parsersMap_.end() ) {
-            delete It.value();
-            parsersMap_.erase(It);
+    if (percent == 101)
+    {
+        QMutexLocker g(m_lock.data());
+        auto It = m_parsersMap.find(threadId);
+        if (It != m_parsersMap.end())
+        {
+            delete It->second;
+            m_parsersMap.erase(It);
         }
     }
 
     // value when few threads is working
-    lastP = abs(progress_->value()-percent) > 1 ? qRound(qreal(percent+lastP+2)/2) : percent;
-    if( lastP > 100 )
+    lastP = abs(m_progress->value() - percent) > 1 ? qRound(double(percent + lastP + 2) / 2) : percent;
+    if (lastP > 100)
     {
-        progress_->reset();
-        progress_->setVisible(false);
+        m_progress->reset();
+        m_progress->setVisible(false);
     }
-    else if( percent != 101 && !progress_->isVisible() )
-        progress_->setVisible(true);
-    else if( lastP > progress_->value() )
-        progress_->setValue(lastP);
+    else if (percent != 101 && !m_progress->isVisible())
+    {
+        m_progress->setVisible(true);
+    }
+    else if (lastP > m_progress->value())
+    {
+        m_progress->setValue(lastP);
+    }
+}
+
+void MainWindow::dropEvent(QDropEvent *event)
+{
+    event->accept();
+    auto urls = event->mimeData()->urls();
+
+    QStringList tsFiles;
+    for (auto &item : urls)
+    {
+        tsFiles << item.toLocalFile();
+    }
+
+    OpenFiles(tsFiles);
+
+    event->acceptProposedAction();
+}
+
+void MainWindow::dragEnterEvent(QDragEnterEvent *event)
+{
+    event->acceptProposedAction();
 }

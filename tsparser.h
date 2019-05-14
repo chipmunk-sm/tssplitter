@@ -1,5 +1,5 @@
-#ifndef __tsparser_h__
-#define __tsparser_h__
+#ifndef TSPARSER_H
+#define TSPARSER_H
 
 #include "tsstream.h"
 
@@ -22,16 +22,20 @@ public:
     ~TsParser();
 
     bool start();
-    const quint8* read(const qint64& pos, qint32 n);
+    const uint8_t* read(const int64_t& position, int32_t sizeToRead, bool &bEof);
+    inline const QString getSourceName()
+    {
+        return m_file.fileName();
+    }
 
 Q_SIGNALS:
-    void streamFound(const STREAM_INFO& streamInfo);
+    void streamFound(const STREAM_INFO& streamInfo, TsParser* self);
     void notifyError(const QString& info);
-    void notifyStart(qint32 threadId, const TsParser& self);
-    void notifyDone(qint32 percent, qint32 threadId);
+    void notifyStart(Qt::HANDLE threadId, TsParser* self);
+    void notifyDone(int32_t percent, Qt::HANDLE threadId);
 
 protected:
-    qint32 process();
+    int32_t process();
     void run();
 
 private:
@@ -39,40 +43,39 @@ private:
     void resetPosmap();
     void registerPmt();
     void writeStreamData(STREAM_PKG* pkg);
-    void showStreamInfo(quint16 pid);
+    void showStreamInfo(uint16_t pid);
 
 private:
-    quint8 channels_;
+    uint8_t channels_;
 
-    typedef QMap<quint8,FILE*> FilesT;
-    FilesT outfiles_;
+    std::map<uint16_t, QFile> outfiles_;
 
     // AV raw buffer
-    qint32  avBufSize_;         // size of av buffer
-    qint64  avPos_;             // absolute position in av
-    quint8* avBuf_;             // buffer
-    quint8* avRbs_;             // raw data start in buffer
-    quint8* avRbe_;             // raw data end in buffer
+    std::vector<uint8_t> m_buffer;// buffer
+    int64_t  avPos_;             // absolute position in av
+    uint8_t* avRbs_;             // raw data start in buffer
+    uint8_t* avRbe_;             // raw data end in buffer
 
     // playback context
     QScopedPointer<AVContext> AVContext_;
 
-    quint16 mainStreamPID_;     // PID of main stream
-    qint64  absDTS_;            // absolute decode time of main stream
-    qint64  absPTS_;            // absolute presentation time of main stream
-    qint64  pinTime_;           // pinned relative position (90Khz)
-    qint64  curTime_;           // current relative position (90Khz)
-    qint64  endTime_;           // last relative marked position (90Khz))
+    uint16_t mainStreamPID_;     // PID of main stream
+    int64_t  absDTS_;            // absolute decode time of main stream
+    int64_t  absPTS_;            // absolute presentation time of main stream
+    int64_t  pinTime_;           // pinned relative position (90Khz)
+    int64_t  curTime_;           // current relative position (90Khz)
+    int64_t  endTime_;           // last relative marked position (90Khz))
 
-    struct AV_POSMAP_ITEM {
-        qint64 avPts;
-        qint64 avPos;
+    struct AV_POSMAP_ITEM
+    {
+        int64_t avPts;
+        int64_t avPos;
     };
-    QMap<qint64,AV_POSMAP_ITEM> posMap_;
 
-    qint32 done_;
-    qint64 fileSize_;
-    QFile  tsfile_;
+    QMap<int64_t, AV_POSMAP_ITEM> m_positionMap;
+
+    int32_t m_progress = 0;
+    QFile   m_file;
 };
 
-#endif // __tsparser_h__
+#endif // TSPARSER_H

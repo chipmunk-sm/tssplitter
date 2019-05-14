@@ -1,33 +1,34 @@
 #include "bitstream.h"
 
-BitStream::BitStream(quint8* data, qint32 bits)
+BitStream::BitStream(uint8_t* data, int32_t bits)
 {
-    data_   = data;
+    data_ = data;
     offset_ = 0;
-    len_    = bits;
-    error_  = false;
+    len_ = bits;
+    error_ = false;
 }
 
-void BitStream::setBitStream(quint8* data, qint32 bits)
+void BitStream::setBitStream(uint8_t* data, int32_t bits)
 {
-    data_   = data;
+    data_ = data;
     offset_ = 0;
-    len_    = bits;
-    error_  = false;
+    len_ = bits;
+    error_ = false;
 }
 
-quint32 BitStream::readBits(qint32 num)
+uint32_t BitStream::readBits(int32_t num)
 {
-    quint32 r = 0;
-    while( num > 0 )
+    uint32_t r = 0;
+    while (num > 0)
     {
-        if( offset_ >= len_ ) {
+        if (offset_ >= len_)
+        {
             error_ = true;
             return 0;
         }
 
         num--;
-        if( data_[offset_/8] & (1 << (7 - (offset_&7))) )
+        if (data_[offset_ / 8] & (1 << (7 - (offset_ & 7))))
             r |= 1 << num;
 
         offset_++;
@@ -35,18 +36,19 @@ quint32 BitStream::readBits(qint32 num)
     return r;
 }
 
-qint32 BitStream::showBits(qint32 num)
+int32_t BitStream::showBits(int32_t num)
 {
-    qint32 r = 0, offs = offset_;
-    while( num > 0 ) 
+    int32_t r = 0, offs = offset_;
+    while (num > 0)
     {
-        if( offs >= len_ ) {
+        if (offs >= len_)
+        {
             error_ = true;
             return 0;
         }
 
         num--;
-        if( data_[offs/8] & (1 << (7 - (offs&7))) )
+        if (data_[offs / 8] & (1 << (7 - (offs & 7))))
             r |= 1 << num;
 
         offs++;
@@ -54,22 +56,22 @@ qint32 BitStream::showBits(qint32 num)
     return r;
 }
 
-qint32 BitStream::readGolombUE(qint32 maxbits)
+int32_t BitStream::readGolombUE(int32_t maxbits)
 {
-  qint32 lzb = -1, bits = 0;
-  for( qint32 b = 0; !b; lzb++, bits++ )
-  {
-        if( bits > maxbits )
+    int32_t lzb = -1, bits = 0;
+    for (int32_t b = 0; !b; lzb++, bits++)
+    {
+        if (bits > maxbits)
             return 0;
         b = readBits1();
-  }
-  return (1 << lzb) - 1 + readBits(lzb);
+    }
+    return static_cast<int32_t>((1 << lzb) - 1 + readBits(lzb));
 }
 
-qint32 BitStream::readGolombSE()
+int32_t BitStream::readGolombSE()
 {
-    qint32 pos, v = readGolombUE();
-    if( v == 0 )
+    int32_t pos, v = readGolombUE();
+    if (v == 0)
         return 0;
 
     pos = (v & 1);
@@ -78,20 +80,21 @@ qint32 BitStream::readGolombSE()
 }
 
 
-void BitStream::putBits(qint32 val, qint32 num)
+void BitStream::putBits(int32_t val, int32_t num)
 {
-    while( num > 0 ) 
+    while (num > 0)
     {
-        if( offset_ >= len_ ) {
+        if (offset_ >= len_)
+        {
             error_ = true;
             return;
         }
 
         num--;
-        if( val & (1 << num) )
-            data_[offset_/8] |= 1 << (7 - (offset_&7));
+        if (val & (1 << num))
+            data_[offset_ / 8] |= 1 << (7 - (offset_ & 7));
         else
-            data_[offset_/8] &= ~(1 << (7 - (offset_&7)));
+            data_[offset_ / 8] &= ~(1 << (7 - (offset_ & 7)));
         offset_++;
     }
 }

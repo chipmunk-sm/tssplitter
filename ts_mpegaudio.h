@@ -1,5 +1,5 @@
-#ifndef __ts_mpegaudio_h__
-#define __ts_mpegaudio_h__
+#ifndef TS_MPEGAUDIO_H
+#define TS_MPEGAUDIO_H
 
 #include "tsstream.h"
 
@@ -7,19 +7,19 @@
 class MPEG2Audio : public TsStream
 {
 private:
-    qint32  sampleRate_;
-    qint32  channels_;
-    qint32  bitRate_;
-    qint32  frameSize_;
-    qint64  PTS_, DTS_;
+    int32_t  sampleRate_;
+    int32_t  channels_;
+    int32_t  bitRate_;
+    int32_t  frameSize_;
+    int64_t  PTS_, DTS_;
 
-    qint32 findHeaders(quint8* buf, qint32 bufSize);
+    int32_t findHeaders(uint8_t* buf, int32_t bufSize);
 
 public:
-    MPEG2Audio(quint16 pid);
+    MPEG2Audio(uint16_t pid);
     virtual ~MPEG2Audio();
 
     virtual void parse(STREAM_PKG* pkg);
 };
 
-#endif // __ts_mpegaudio_h__
+#endif // TS_MPEGAUDIO_H

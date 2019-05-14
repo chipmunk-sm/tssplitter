@@ -10,20 +10,20 @@
 #define MAX_RESYNC_SIZE 65536
 
 ////////////////////////////////////////////////////////////////////////////////
-AVContext::AVContext(TsParser& parser, const qint64& pos, quint16 channel)
+AVContext::AVContext(TsParser& parser, const int64_t& pos, uint16_t channel)
     : parser_(parser),
-    avPos_(pos), 
-    avDataLen_(FLUTS_NORMAL_TS_PACKAGESIZE), 
-    avPkgSize_(0), 
-    isConfigured_(false), 
-    channel_(channel), 
-    pid_(0xffff), 
-    transportError_(false), 
-    hasPayload_(false), 
-    payloadUnitStart_(false), 
-    discontinuity_(false), 
-    payload_(NULL), 
-    payloadLen_(0), 
+    avPos_(pos),
+    avDataLen_(FLUTS_NORMAL_TS_PACKAGESIZE),
+    avPkgSize_(0),
+    isConfigured_(false),
+    channel_(channel),
+    pid_(0xffff),
+    transportError_(false),
+    hasPayload_(false),
+    payloadUnitStart_(false),
+    discontinuity_(false),
+    payload_(NULL),
+    payloadLen_(0),
     package_(NULL),
     csMutex_(new QMutex())
 {
@@ -55,34 +55,34 @@ QVector<TsStream*> AVContext::getStreams() const
     QMutexLocker lock(csMutex_);
 
     QVector<TsStream*> v;
-    QMap<quint16,TsPackage>::const_iterator It = packages_.begin();
-    for(; It != packages_.end(); ++It)
-        if( It->packageType == PACKAGE_TYPE_PES && It->pStream != NULL )
+    QMap<uint16_t, TsPackage>::const_iterator It = packages_.begin();
+    for (; It != packages_.end(); ++It)
+        if (It->packageType == PACKAGE_TYPE_PES && It->pStream != NULL)
             v.push_back(It->pStream);
     return v;
 }
 
-void AVContext::startStreaming(quint16 pid)
+void AVContext::startStreaming(uint16_t pid)
 {
     QMutexLocker lock(csMutex_);
-    QMap<quint16,TsPackage>::iterator It = packages_.find(pid);
-    if( It != packages_.end() )
+    QMap<uint16_t, TsPackage>::iterator It = packages_.find(pid);
+    if (It != packages_.end())
         It->streaming = true;
 }
 
-void AVContext::stopStreaming(quint16 pid)
+void AVContext::stopStreaming(uint16_t pid)
 {
     QMutexLocker lock(csMutex_);
-    QMap<quint16,TsPackage>::iterator It = packages_.find(pid);
-    if( It != packages_.end() )
+    QMap<uint16_t, TsPackage>::iterator It = packages_.find(pid);
+    if (It != packages_.end())
         It->streaming = false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 //  MPEG-TS parser for the context
-STREAM_TYPE AVContext::getStreamType(quint8 pesType)
+STREAM_TYPE AVContext::getStreamType(uint8_t pesType)
 {
-    switch( pesType )
+    switch (pesType)
     {
     case 0x01:
         return STREAM_TYPE_VIDEO_MPEG1;
@@ -118,47 +118,61 @@ STREAM_TYPE AVContext::getStreamType(quint8 pesType)
     return STREAM_TYPE_UNKNOWN;
 }
 
-qint32 AVContext::configureTs()
+int32_t AVContext::configureTs()
 {
-    const quint8* data;
-    qint32 dataSize = AV_CONTEXT_PACKAGESIZE;
-    qint64 pos = avPos_;
-    qint32 fluts[][2] = {
+    const uint8_t* data;
+    int32_t dataSize = AV_CONTEXT_PACKAGESIZE;
+    int64_t pos = avPos_;
+    int32_t fluts[][2] = {
         {FLUTS_NORMAL_TS_PACKAGESIZE, 0},
         {FLUTS_M2TS_TS_PACKAGESIZE, 0},
         {FLUTS_DVB_ASI_TS_PACKAGESIZE, 0},
         {FLUTS_ATSC_TS_PACKAGESIZE, 0}
     };
-    qint32 nb = sizeof(fluts) / (2*sizeof(qint32));
-    qint32 score = TS_CHECK_MIN_SCORE;
+    int32_t nb = sizeof(fluts) / (2 * sizeof(int32_t));
+    int32_t score = TS_CHECK_MIN_SCORE;
 
-    for(qint32 i = 0; i < MAX_RESYNC_SIZE; i++)
+    for (int32_t i = 0; i < MAX_RESYNC_SIZE; i++)
     {
-        if( NULL == (data = parser_.read(pos, dataSize)) )
-            return AVCONTEXT_IO_ERROR;
 
-        if( data[0] == 0x47 )
+        bool isEof = false;
+        if (nullptr == (data = parser_.read(pos, dataSize, isEof)))
         {
-            qint32 count, found;
-            for (qint32 t = 0; t < nb; t++) // for all fluts
+            if(isEof)
+                return AVCONTEXT_EOF_1;
+            return AVCONTEXT_IO_ERROR_1;
+        }
+
+        if (data[0] == 0x47)
+        {
+            int32_t count, found;
+            for (int32_t t = 0; t < nb; t++) // for all fluts
             {
-                const quint8* ndata;
-                qint64 npos = pos;
-                qint32 do_retry = score; // reach for score
-                do {
+                const uint8_t* ndata;
+                int64_t npos = pos;
+                int32_t do_retry = score; // reach for score
+                do
+                {
                     --do_retry;
                     npos += fluts[t][0];
-                    if( NULL == (ndata = parser_.read(npos, dataSize)) )
-                        return AVCONTEXT_IO_ERROR;
-                }
-                while( ndata[0] == 0x47 && (++fluts[t][1]) && do_retry );
+
+                    isEof = false;
+                    if (nullptr == (ndata = parser_.read(npos, dataSize, isEof)))
+                    {
+                        if(isEof)
+                            return AVCONTEXT_EOF_2;
+                        return AVCONTEXT_IO_ERROR_2;
+                    }
+
+                } while (ndata[0] == 0x47 && (++fluts[t][1]) && do_retry);
             }
 
             // Is score reached ?
             count = found = 0;
-            for (qint32 t = 0; t < nb; t++)
+            for (int32_t t = 0; t < nb; t++)
             {
-                if( fluts[t][1] == score ) {
+                if (fluts[t][1] == score)
+                {
                     found = t;
                     ++count;
                 }
@@ -167,7 +181,7 @@ qint32 AVContext::configureTs()
             }
 
             // One and only one is eligible
-            if( count == 1 )
+            if (count == 1)
             {
                 avPkgSize_ = fluts[found][0];
                 avPos_ = pos;
@@ -181,33 +195,43 @@ qint32 AVContext::configureTs()
                 pos++;
         }
         else
-        pos++;
+            pos++;
     }
     // stream is invalid
     return AVCONTEXT_TS_NOSYNC;
 }
 
-qint32 AVContext::TSResync()
+int32_t AVContext::TSResync()
 {
-    const quint8* data;
-    if( !isConfigured_ )
+    const uint8_t* data;
+    if (!isConfigured_)
     {
-        qint32 ret = configureTs();
-        if( ret != AVCONTEXT_CONTINUE )
+        int32_t ret = configureTs();
+        if (ret != AVCONTEXT_CONTINUE)
             return ret;
         isConfigured_ = true;
     }
 
-    for(qint32 i = 0; i < MAX_RESYNC_SIZE; i++)
+    for (int32_t i = 0; i < MAX_RESYNC_SIZE; i++)
     {
-        if( NULL == (data = parser_.read(avPos_, avPkgSize_)) )
-            return AVCONTEXT_IO_ERROR;
-        if( data[0] == 0x47 ) {
+
+        bool isEof = false;
+        if (nullptr == (data = parser_.read(avPos_, avPkgSize_, isEof)))
+        {
+            if(isEof)
+                return AVCONTEXT_EOF_3;
+            return AVCONTEXT_IO_ERROR_3;
+        }
+
+        if (data[0] == 0x47)
+        {
             memcpy(avBuf_, data, avPkgSize_);
             reset();
             return AVCONTEXT_CONTINUE;
         }
+
         avPos_++;
+
     }
     return AVCONTEXT_TS_NOSYNC;
 }
@@ -226,17 +250,17 @@ qint32 AVContext::TSResync()
 // Bad sync byte. Should run TSResync().
 // AVCONTEXT_TS_ERROR
 // Parsing error
-qint32 AVContext::processTSPackage()
+int32_t AVContext::processTSPackage()
 {
     QMutexLocker lock(csMutex_);
 
-    qint32 ret = AVCONTEXT_CONTINUE;
-    QMap<quint16,TsPackage>::iterator It;
+    int32_t ret = AVCONTEXT_CONTINUE;
+    QMap<uint16_t, TsPackage>::iterator It;
 
-    if( avRb8(avBuf_) != 0x47) // ts sync byte
+    if (avRb8(avBuf_) != 0x47) // ts sync byte
         return AVCONTEXT_TS_NOSYNC;
 
-    quint16 header = avRb16(avBuf_+1);
+    uint16_t header = avRb16(avBuf_ + 1);
     pid_ = header & 0x1fff;
     transportError_ = (header & 0x8000) != 0;
     payloadUnitStart_ = (header & 0x4000) != 0;
@@ -246,29 +270,29 @@ qint32 AVContext::processTSPackage()
     payload_ = NULL;
     payloadLen_ = 0;
 
-    if( transportError_ )
+    if (transportError_)
         return AVCONTEXT_CONTINUE;
     // Null package
-    if( pid_ == 0x1fff )
+    if (pid_ == 0x1fff)
         return AVCONTEXT_CONTINUE;
 
-    quint8 flags = avRb8(avBuf_+3);
+    uint8_t flags = avRb8(avBuf_ + 3);
     bool hasPayload = (flags & 0x10) != 0;
     bool isDiscontinuity = false;
-    quint8 continuityCounter = flags & 0x0f;
+    uint8_t continuityCounter = flags & 0x0f;
     bool hasAdaptation = (flags & 0x20) != 0;
-    qint32 n = 0;
-    if( hasAdaptation )
+    int32_t n = 0;
+    if (hasAdaptation)
     {
-        qint32 len = (qint32)avRb8(avBuf_+ 4);
-        if( len > avDataLen_-5)
+        int32_t len = (int32_t)avRb8(avBuf_ + 4);
+        if (len > avDataLen_ - 5)
             return AVCONTEXT_TS_ERROR;
         n = len + 1;
-        if( len > 0 )
-            isDiscontinuity = (avRb8(avBuf_+5) & 0x80) != 0;
+        if (len > 0)
+            isDiscontinuity = (avRb8(avBuf_ + 5) & 0x80) != 0;
     }
 
-    if( hasPayload )
+    if (hasPayload)
     {
         // Payload start after adaptation fields
         payload_ = avBuf_ + n + 4;
@@ -276,11 +300,11 @@ qint32 AVContext::processTSPackage()
     }
 
     It = packages_.find(pid_);
-    if( It == packages_.end() )
+    if (It == packages_.end())
     {
         // Not registred PID
         // We are waiting for unit start of PID 0 else next package is required
-        if( pid_ == 0 && payloadUnitStart_ )
+        if (pid_ == 0 && payloadUnitStart_)
         {
             // Registering PID 0
             TsPackage pid0;
@@ -296,7 +320,7 @@ qint32 AVContext::processTSPackage()
     {
         // PID is registred
         // Checking unit start is required
-        if( It->waitUnitStart && !payloadUnitStart_)
+        if (It->waitUnitStart && !payloadUnitStart_)
         {
             // Not unit start. Save package flow continuity...
             It->continuity = continuityCounter;
@@ -305,14 +329,15 @@ qint32 AVContext::processTSPackage()
         }
 
         // Checking continuity where possible
-        if( It->continuity != 0xff )
+        if (It->continuity != 0xff)
         {
-            quint8 expected_cc = hasPayload ? (It->continuity + 1) & 0x0f : It->continuity;
-            if( !isDiscontinuity && expected_cc != continuityCounter )
+            uint8_t expected_cc = hasPayload ? (It->continuity + 1) & 0x0f : It->continuity;
+            if (!isDiscontinuity && expected_cc != continuityCounter)
             {
                 discontinuity_ = true;
                 // If unit is not start then reset PID and wait the next unit start
-                if( !payloadUnitStart_ ) {
+                if (!payloadUnitStart_)
+                {
                     It->reset();
                     return AVCONTEXT_DISCONTINUITY;
                 }
@@ -326,10 +351,10 @@ qint32 AVContext::processTSPackage()
     package_ = &(It.value());
 
     // It is time to stream data for PES
-    if( payloadUnitStart_ &&
+    if (payloadUnitStart_ &&
         package_->streaming &&
         package_->packageType == PACKAGE_TYPE_PES &&
-        !package_->waitUnitStart )
+        !package_->waitUnitStart)
     {
         package_->hasStreamData = true;
         ret = AVCONTEXT_STREAM_PID_DATA;
@@ -340,22 +365,23 @@ qint32 AVContext::processTSPackage()
 // Process payload of package depending of its type
 // PACKAGE_TYPE_PSI -> parseTsPsi()
 // PACKAGE_TYPE_PES -> parseTsPes()
-qint32 AVContext::processTSPayload()
+int32_t AVContext::processTSPayload()
 {
     QMutexLocker lock(csMutex_);
 
-    if( !package_ )
+    if (!package_)
         return AVCONTEXT_CONTINUE;
 
-    qint32 ret = 0;
-    switch( package_->packageType ) {
-    case PACKAGE_TYPE_PSI: 
-        ret = parseTsPsi(); 
+    int32_t ret = 0;
+    switch (package_->packageType)
+    {
+    case PACKAGE_TYPE_PSI:
+        ret = parseTsPsi();
         break;
-    case PACKAGE_TYPE_PES: 
-        ret = parseTsPes(); 
+    case PACKAGE_TYPE_PES:
+        ret = parseTsPes();
         break;
-    case PACKAGE_TYPE_UNKNOWN: 
+    case PACKAGE_TYPE_UNKNOWN:
         break;
     }
     return ret;
@@ -363,34 +389,34 @@ qint32 AVContext::processTSPayload()
 
 void AVContext::clearPmt()
 {
-    QVector<quint16> pidList;
-    QMap<quint16, TsPackage>::iterator It = packages_.begin();
-    for(; It != packages_.end(); ++It)
-        if( It->packageType == PACKAGE_TYPE_PSI && 
-            It->packageTable.tableId == 0x02 )
+    QVector<uint16_t> pidList;
+    QMap<uint16_t, TsPackage>::iterator It = packages_.begin();
+    for (; It != packages_.end(); ++It)
+        if (It->packageType == PACKAGE_TYPE_PSI &&
+            It->packageTable.tableId == 0x02)
         {
             pidList.push_back(It.key());
             clearPes(It->channel);
         }
 
-    for( QVector<quint16>::iterator vIt = pidList.begin(); vIt != pidList.end(); ++vIt )
-        if( packages_.end() != (It = packages_.find(*vIt)) )
+    for (QVector<uint16_t>::iterator vIt = pidList.begin(); vIt != pidList.end(); ++vIt)
+        if (packages_.end() != (It = packages_.find(*vIt)))
             packages_.erase(It);
 }
 
-void AVContext::clearPes(quint16 channel)
+void AVContext::clearPes(uint16_t channel)
 {
-    QVector<quint16> pidList;
-    QMap<quint16, TsPackage>::iterator It = packages_.begin();
-    for(; It != packages_.end(); ++It)
-        if( It->packageType == PACKAGE_TYPE_PES && 
-            It->channel == channel )
+    QVector<uint16_t> pidList;
+    QMap<uint16_t, TsPackage>::iterator It = packages_.begin();
+    for (; It != packages_.end(); ++It)
+        if (It->packageType == PACKAGE_TYPE_PES &&
+            It->channel == channel)
         {
             pidList.push_back(It.key());
         }
 
-    for( QVector<quint16>::iterator vIt = pidList.begin(); vIt != pidList.end(); ++vIt )
-        if( packages_.end() != (It = packages_.find(*vIt)) )
+    for (QVector<uint16_t>::iterator vIt = pidList.begin(); vIt != pidList.end(); ++vIt)
+        if (packages_.end() != (It = packages_.find(*vIt)))
             packages_.erase(It);
 }
 
@@ -404,252 +430,252 @@ void AVContext::clearPes(quint16 channel)
 // streaming for those recognized.
 // AVCONTEXT_TS_ERROR
 // Parsing error
-qint32 AVContext::parseTsPsi()
+int32_t AVContext::parseTsPsi()
 {
-    qint32 len;
-    if( !hasPayload_ || payload_ == NULL || payloadLen_ == 0 || package_ == NULL )
+    int32_t len;
+    if (!hasPayload_ || payload_ == nullptr || payloadLen_ == 0 || package_ == nullptr)
         return AVCONTEXT_CONTINUE;
 
-    if( payloadUnitStart_ )
+    if (payloadUnitStart_)
     {
         // reset wait for unit start
         package_->waitUnitStart = false;
         // pointer field present
-        len = (qint32)avRb8(payload_);
-        if( len > payloadLen_ )
+        len = (int32_t)avRb8(payload_);
+        if (len > payloadLen_)
             return AVCONTEXT_TS_ERROR;
         // table ID
-        quint8 tableId = avRb8(payload_+1);
+        uint8_t tableId = avRb8(payload_ + 1);
         // table length
-        len = (qint32)avRb16(payload_+2);
-        if( (len & 0x3000) != 0x3000 )
+        len = (int32_t)avRb16(payload_ + 2);
+        if ((len & 0x3000) != 0x3000)
             return AVCONTEXT_TS_ERROR;
 
         len &= 0x0fff;
         package_->packageTable.reset();
 
-        qint32 n = payloadLen_ - 4;
-        memcpy(package_->packageTable.buf, payload_+4, n);
+        int32_t n = payloadLen_ - 4;
+        memcpy(package_->packageTable.buf, payload_ + 4, n);
         package_->packageTable.tableId = tableId;
         package_->packageTable.offset = n;
         package_->packageTable.len = len;
         // check for incomplete section
-        if( package_->packageTable.offset < package_->packageTable.len)
+        if (package_->packageTable.offset < package_->packageTable.len)
             return AVCONTEXT_CONTINUE;
     }
     else
     {
         // next part of PSI
-        if( package_->packageTable.offset == 0 )
+        if (package_->packageTable.offset == 0)
             return AVCONTEXT_TS_ERROR;
 
-        if( (payloadLen_ + package_->packageTable.offset) > TABLE_BUFFER_SIZE )
+        if ((payloadLen_ + package_->packageTable.offset) > TABLE_BUFFER_SIZE)
             return AVCONTEXT_TS_ERROR;
 
         memcpy(package_->packageTable.buf + package_->packageTable.offset, payload_, payloadLen_);
         package_->packageTable.offset += payloadLen_;
         // check for incomplete section
-        if( package_->packageTable.offset < package_->packageTable.len )
+        if (package_->packageTable.offset < package_->packageTable.len)
             return AVCONTEXT_CONTINUE;
     }
 
     // now entire table is filled
-    const quint8* psi = package_->packageTable.buf;
-    const quint8* endPsi = psi + package_->packageTable.len;
+    const uint8_t* psi = package_->packageTable.buf;
+    const uint8_t* endPsi = psi + package_->packageTable.len;
 
-    switch( package_->packageTable.tableId )
+    switch (package_->packageTable.tableId)
     {
-        case 0x00: // parse PAT table
+    case 0x00: // parse PAT table
+    {
+        // check if version number changed
+        uint16_t id = avRb16(psi);
+        // check if applicable
+        if ((avRb8(psi + 2) & 0x01) == 0)
+            return AVCONTEXT_CONTINUE;
+        // check if version number changed
+        uint8_t version = (avRb8(psi + 2) & 0x3e) >> 1;
+        if (id == package_->packageTable.id &&
+            version == package_->packageTable.version)
         {
-            // check if version number changed
-            quint16 id = avRb16(psi);
-            // check if applicable
-            if( (avRb8(psi+2) & 0x01) == 0)
-                return AVCONTEXT_CONTINUE;
-            // check if version number changed
-            quint8 version = (avRb8(psi+2) & 0x3e) >> 1;
-            if( id == package_->packageTable.id && 
-                version == package_->packageTable.version )
-            {
-                return AVCONTEXT_CONTINUE;
-            }
-
-            // clear old associated pmt
-            clearPmt();
-            // parse new version of PAT
-            psi += 5;
-            // CRC32
-            endPsi -= 4; 
-
-            if( psi >= endPsi )
-                return AVCONTEXT_TS_ERROR;
-
-            if( (len = endPsi - psi) % 4 )
-                return AVCONTEXT_TS_ERROR;
-
-            qint32 n = len / 4;
-            for( qint32 i = 0; i < n; i++, psi += 4)
-            {
-                quint16 channel = avRb16(psi);
-                quint16 pmtPid  = avRb16(psi+2);
-
-                // Reserved fields in table sections must be "set" to '1' bits.
-                //if( (pmtPid & 0xe000) != 0xe000 )
-                //    return AVCONTEXT_TS_ERROR;
-                pmtPid &= 0x1fff;
-                if( channel_ == 0 || channel_ == channel)
-                {
-                    TsPackage& pmt = packages_[pmtPid];
-                    pmt.pid = pmtPid;
-                    pmt.packageType = PACKAGE_TYPE_PSI;
-                    pmt.channel = channel;
-                }
-            }
-
-            // PAT is processed. New version is available
-            package_->packageTable.id = id;
-            package_->packageTable.version = version;
-            break;
+            return AVCONTEXT_CONTINUE;
         }
-        case 0x02: // parse PMT table
+
+        // clear old associated pmt
+        clearPmt();
+        // parse new version of PAT
+        psi += 5;
+        // CRC32
+        endPsi -= 4;
+
+        if (psi >= endPsi)
+            return AVCONTEXT_TS_ERROR;
+
+        if ((len = endPsi - psi) % 4)
+            return AVCONTEXT_TS_ERROR;
+
+        int32_t n = len / 4;
+        for (int32_t i = 0; i < n; i++, psi += 4)
         {
-            quint16 id = avRb16(psi);
-            // check if applicable
-            if( (avRb8(psi+2) & 0x01) == 0 )
-                return AVCONTEXT_CONTINUE;
-            // check if version number changed
-            quint8 version = (avRb8(psi+2) & 0x3e) >> 1;
-            if( id == package_->packageTable.id && 
-                version == package_->packageTable.version)
+            uint16_t channel = avRb16(psi);
+            uint16_t pmtPid = avRb16(psi + 2);
+
+            // Reserved fields in table sections must be "set" to '1' bits.
+            //if( (pmtPid & 0xe000) != 0xe000 )
+            //    return AVCONTEXT_TS_ERROR;
+            pmtPid &= 0x1fff;
+            if (channel_ == 0 || channel_ == channel)
             {
-                return AVCONTEXT_CONTINUE;
+                TsPackage& pmt = packages_[pmtPid];
+                pmt.pid = pmtPid;
+                pmt.packageType = PACKAGE_TYPE_PSI;
+                pmt.channel = channel;
             }
-
-            // clear old pes
-            clearPes(package_->channel);
-
-            // parse new version of PMT
-            psi += 7;
-            endPsi -= 4; // CRC32
-            if( psi >= endPsi )
-                return AVCONTEXT_TS_ERROR;
-
-            len = (qint32)(avRb16(psi) & 0x0fff);
-            psi += 2 + len;
-
-            while( psi < endPsi )
-            {
-                if( endPsi - psi < 5 )
-                    return AVCONTEXT_TS_ERROR;
-
-                quint8  pesType = avRb8(psi);
-                quint16 pesPid  = avRb16(psi+1);
-
-                // Reserved fields in table sections must be "set" to '1' bits.
-                //if( (pesPid & 0xe000) != 0xe000 )
-                //    return AVCONTEXT_TS_ERROR;
-
-                pesPid &= 0x1fff;
-
-                // len of descriptor section
-                len = (qint32)(avRb16(psi+3) & 0x0fff);
-                psi += 5;
-
-                // ignore unknown streams
-                STREAM_TYPE streamType = getStreamType(pesType);
-                if( streamType != STREAM_TYPE_UNKNOWN )
-                {
-                    TsPackage& pes = packages_[pesPid];
-                    pes.pid = pesPid;
-                    pes.packageType = PACKAGE_TYPE_PES;
-                    pes.channel = package_->channel;
-                    // disable streaming by default
-                    pes.streaming = false;
-
-                    // get basic stream infos from PMT table
-                    STREAM_INFO streamInfo = parsePesDescriptor(psi, len, &streamType);
-                    TsStream* es;
-                    switch( streamType )
-                    {
-                    case STREAM_TYPE_VIDEO_MPEG1:
-                    case STREAM_TYPE_VIDEO_MPEG2:
-                        es = new MPEG2Video(pesPid);
-                        break;
-                    case STREAM_TYPE_AUDIO_MPEG1:
-                    case STREAM_TYPE_AUDIO_MPEG2:
-                        es = new MPEG2Audio(pesPid);
-                        break;
-                    case STREAM_TYPE_AUDIO_AAC:
-                    case STREAM_TYPE_AUDIO_AAC_ADTS:
-                    case STREAM_TYPE_AUDIO_AAC_LATM:
-                        es = new AAC(pesPid);
-                        break;
-                    case STREAM_TYPE_VIDEO_H264:
-                        es = new h264(pesPid);
-                        break;
-                    case STREAM_TYPE_AUDIO_AC3:
-                    case STREAM_TYPE_AUDIO_EAC3:
-                        es = new AC3(pesPid);
-                        break;
-                    case STREAM_TYPE_DVB_SUBTITLE:
-                        es = new Subtitle(pesPid);
-                        break;
-                    case STREAM_TYPE_DVB_TELETEXT:
-                        es = new Teletext(pesPid);
-                        break;
-                    default:
-                        // No parser: pass-through
-                        es = new TsStream(pesPid);
-                        es->hasStreamInfo_ = true;
-                        break;
-                    }
-
-                    es->streamType_ = streamType;
-                    es->streamInfo_ = streamInfo;
-                    pes.pStream = es;
-                }
-                psi += len;
-            }
-
-            if( psi != endPsi )
-                return AVCONTEXT_TS_ERROR;
-
-            // PMT is processed. New version is available
-            package_->packageTable.id = id;
-            package_->packageTable.version = version;
-            return AVCONTEXT_PROGRAM_CHANGE;
         }
-        default:
-            // CAT, NIT table
-            break;
+
+        // PAT is processed. New version is available
+        package_->packageTable.id = id;
+        package_->packageTable.version = version;
+        break;
     }
-   
+    case 0x02: // parse PMT table
+    {
+        uint16_t id = avRb16(psi);
+        // check if applicable
+        if ((avRb8(psi + 2) & 0x01) == 0)
+            return AVCONTEXT_CONTINUE;
+        // check if version number changed
+        uint8_t version = (avRb8(psi + 2) & 0x3e) >> 1;
+        if (id == package_->packageTable.id &&
+            version == package_->packageTable.version)
+        {
+            return AVCONTEXT_CONTINUE;
+        }
+
+        // clear old pes
+        clearPes(package_->channel);
+
+        // parse new version of PMT
+        psi += 7;
+        endPsi -= 4; // CRC32
+        if (psi >= endPsi)
+            return AVCONTEXT_TS_ERROR;
+
+        len = (int32_t)(avRb16(psi) & 0x0fff);
+        psi += 2 + len;
+
+        while (psi < endPsi)
+        {
+            if (endPsi - psi < 5)
+                return AVCONTEXT_TS_ERROR;
+
+            uint8_t  pesType = avRb8(psi);
+            uint16_t pesPid = avRb16(psi + 1);
+
+            // Reserved fields in table sections must be "set" to '1' bits.
+            //if( (pesPid & 0xe000) != 0xe000 )
+            //    return AVCONTEXT_TS_ERROR;
+
+            pesPid &= 0x1fff;
+
+            // len of descriptor section
+            len = (int32_t)(avRb16(psi + 3) & 0x0fff);
+            psi += 5;
+
+            // ignore unknown streams
+            STREAM_TYPE streamType = getStreamType(pesType);
+            if (streamType != STREAM_TYPE_UNKNOWN)
+            {
+                TsPackage& pes = packages_[pesPid];
+                pes.pid = pesPid;
+                pes.packageType = PACKAGE_TYPE_PES;
+                pes.channel = package_->channel;
+                // disable streaming by default
+                pes.streaming = false;
+
+                // get basic stream infos from PMT table
+                STREAM_INFO streamInfo = parsePesDescriptor(psi, len, &streamType);
+                TsStream* es;
+                switch (streamType)
+                {
+                case STREAM_TYPE_VIDEO_MPEG1:
+                case STREAM_TYPE_VIDEO_MPEG2:
+                    es = new MPEG2Video(pesPid);
+                    break;
+                case STREAM_TYPE_AUDIO_MPEG1:
+                case STREAM_TYPE_AUDIO_MPEG2:
+                    es = new MPEG2Audio(pesPid);
+                    break;
+                case STREAM_TYPE_AUDIO_AAC:
+                case STREAM_TYPE_AUDIO_AAC_ADTS:
+                case STREAM_TYPE_AUDIO_AAC_LATM:
+                    es = new AAC(pesPid);
+                    break;
+                case STREAM_TYPE_VIDEO_H264:
+                    es = new h264(pesPid);
+                    break;
+                case STREAM_TYPE_AUDIO_AC3:
+                case STREAM_TYPE_AUDIO_EAC3:
+                    es = new AC3(pesPid);
+                    break;
+                case STREAM_TYPE_DVB_SUBTITLE:
+                    es = new Subtitle(pesPid);
+                    break;
+                case STREAM_TYPE_DVB_TELETEXT:
+                    es = new Teletext(pesPid);
+                    break;
+                default:
+                    // No parser: pass-through
+                    es = new TsStream(pesPid);
+                    es->hasStreamInfo_ = true;
+                    break;
+                }
+
+                es->streamType_ = streamType;
+                es->streamInfo_ = streamInfo;
+                pes.pStream = es;
+            }
+            psi += len;
+        }
+
+        if (psi != endPsi)
+            return AVCONTEXT_TS_ERROR;
+
+        // PMT is processed. New version is available
+        package_->packageTable.id = id;
+        package_->packageTable.version = version;
+        return AVCONTEXT_PROGRAM_CHANGE;
+    }
+    default:
+        // CAT, NIT table
+        break;
+    }
+
     return AVCONTEXT_CONTINUE;
 }
 
-STREAM_INFO AVContext::parsePesDescriptor(const quint8* p, qint32 len, STREAM_TYPE* st)
+STREAM_INFO AVContext::parsePesDescriptor(const uint8_t* p, int32_t len, STREAM_TYPE* st)
 {
-    const quint8* descEnd = p + len;
+    const uint8_t* descEnd = p + len;
     STREAM_INFO si;
     memset(&si, 0, sizeof(STREAM_INFO));
 
-    while( p < descEnd )
+    while (p < descEnd)
     {
-        quint8 descTag = avRb8(p);
-        quint8 descLen = avRb8(p+1);
+        uint8_t descTag = avRb8(p);
+        uint8_t descLen = avRb8(p + 1);
         p += 2;
 
-        switch( descTag )
+        switch (descTag)
         {
         case 0x02:
         case 0x03:
             break;
         case 0x0a: // ISO 639 language descriptor
-            if( descLen >= 4 )
+            if (descLen >= 4)
             {
                 si.language[0] = avRb8(p);
-                si.language[1] = avRb8(p+1);
-                si.language[2] = avRb8(p+2);
+                si.language[1] = avRb8(p + 1);
+                si.language[2] = avRb8(p + 2);
                 si.language[3] = 0;
             }
             break;
@@ -658,18 +684,18 @@ STREAM_INFO AVContext::parsePesDescriptor(const quint8* p, qint32 len, STREAM_TY
             *st = STREAM_TYPE_DVB_TELETEXT;
             break;
         case 0x59: // subtitling descriptor
-            if( descLen >= 8 )
+            if (descLen >= 8)
             {
                 // Byte 4 is the subtitling_type field
                 // av_rb8(p + 3) & 0x10 : normal
                 // av_rb8(p + 3) & 0x20 : for the hard of hearing
                 *st = STREAM_TYPE_DVB_SUBTITLE;
                 si.language[0] = avRb8(p);
-                si.language[1] = avRb8(p+1);
-                si.language[2] = avRb8(p+2);
+                si.language[1] = avRb8(p + 1);
+                si.language[2] = avRb8(p + 2);
                 si.language[3] = 0;
-                si.compositionId = (qint32)avRb16(p+4);
-                si.ancillaryId = (qint32)avRb16(p+6);
+                si.compositionId = (int32_t)avRb16(p + 4);
+                si.ancillaryId = (int32_t)avRb16(p + 6);
             }
             break;
         case 0x6a: // DVB AC3
@@ -704,18 +730,18 @@ STREAM_INFO AVContext::parsePesDescriptor(const quint8* p, qint32 len, STREAM_TY
 // the frame buffer of corresponding elementary stream.
 // AVCONTEXT_TS_ERROR
 // Parsing error
-qint32 AVContext::parseTsPes()
+int32_t AVContext::parseTsPes()
 {
-    if( !hasPayload_ || payload_ == NULL || payloadLen_ == 0 || package_ == NULL )
+    if (!hasPayload_ || payload_ == nullptr || payloadLen_ == 0 || package_ == nullptr)
         return AVCONTEXT_CONTINUE;
 
-    if( package_->pStream == NULL )
+    if (package_->pStream == nullptr)
         return AVCONTEXT_CONTINUE;
 
-    if( payloadUnitStart_ )
+    if (payloadUnitStart_)
     {
         // wait for unit start: Reset frame buffer to clear old data
-        if( this->package_->waitUnitStart )
+        if (this->package_->waitUnitStart)
         {
             package_->pStream->reset();
             package_->pStream->prevDts_ = PTS_UNSET;
@@ -730,64 +756,65 @@ qint32 AVContext::parseTsPes()
     }
 
     // position in the payload buffer. Start at 0
-    qint32 pos = 0;
-    while( package_->packageTable.offset < package_->packageTable.len )
+    int32_t pos = 0;
+    while (package_->packageTable.offset < package_->packageTable.len)
     {
-        if( pos >= payloadLen_ )
+        if (pos >= payloadLen_)
             return AVCONTEXT_CONTINUE;
 
-        qint32 n = package_->packageTable.len - package_->packageTable.offset;
+        int32_t n = package_->packageTable.len - package_->packageTable.offset;
 
-        if( n > payloadLen_ - pos )
+        if (n > payloadLen_ - pos)
             n = payloadLen_ - pos;
 
-        memcpy(package_->packageTable.buf + package_->packageTable.offset, payload_+pos, n);
+        memcpy(package_->packageTable.buf + package_->packageTable.offset, payload_ + pos, n);
         package_->packageTable.offset += n;
         pos += n;
 
-        if( package_->packageTable.offset == 6 )
+        if (package_->packageTable.offset == 6)
         {
-            if( memcmp(package_->packageTable.buf, "\x00\x00\x01", 3) == 0 )
+            if (memcmp(package_->packageTable.buf, "\x00\x00\x01", 3) == 0)
             {
-                quint8 streamId = avRb8(package_->packageTable.buf+3);
-                if( streamId == 0xbd || (streamId >= 0xc0 && streamId <= 0xef) )
+                uint8_t streamId = avRb8(package_->packageTable.buf + 3);
+                if (streamId == 0xbd || (streamId >= 0xc0 && streamId <= 0xef))
                     package_->packageTable.len = 9;
             }
         }
-        else if( package_->packageTable.offset == 9 )
-            package_->packageTable.len += avRb8(package_->packageTable.buf+8);
+        else if (package_->packageTable.offset == 9)
+            package_->packageTable.len += avRb8(package_->packageTable.buf + 8);
     }
 
     // parse header table
     bool hasPts = false;
 
-    if( package_->packageTable.len >= 9 )
+    if (package_->packageTable.len >= 9)
     {
-        quint8 flags = avRb8(package_->packageTable.buf+7);
+        uint8_t flags = avRb8(package_->packageTable.buf + 7);
 
         //package_->pStream->frame_num++;
-        switch (flags & 0xc0) {
+        switch (flags & 0xc0)
+        {
         case 0x80: // PTS only
             hasPts = true;
-            if( package_->packageTable.len >= 14 )
+            if (package_->packageTable.len >= 14)
             {
-                qint64 pts = decodePts(package_->packageTable.buf+9);
+                int64_t pts = decodePts(package_->packageTable.buf + 9);
                 package_->pStream->prevDts_ = package_->pStream->curDts_;
                 package_->pStream->prevPts_ = package_->pStream->curPts_;
-                package_->pStream->curDts_  = package_->pStream->curPts_ = pts;
+                package_->pStream->curDts_ = package_->pStream->curPts_ = pts;
             }
             else
                 package_->pStream->curDts_ = package_->pStream->curPts_ = PTS_UNSET;
             break;
         case 0xc0: // PTS,DTS
             hasPts = true;
-            if( package_->packageTable.len >= 19 )
+            if (package_->packageTable.len >= 19)
             {
-                qint64 pts = decodePts(package_->packageTable.buf+9);
-                qint64 dts = decodePts(package_->packageTable.buf+14);
-                qint64 d = (pts - dts) & PTS_MASK;
+                int64_t pts = decodePts(package_->packageTable.buf + 9);
+                int64_t dts = decodePts(package_->packageTable.buf + 14);
+                int64_t d = (pts - dts) & PTS_MASK;
                 // more than two seconds of PTS/DTS delta, probably corrupt
-                if(d > 180000)
+                if (d > 180000)
                 {
                     package_->pStream->curDts_ = package_->pStream->curPts_ = PTS_UNSET;
                 }
@@ -795,8 +822,8 @@ qint32 AVContext::parseTsPes()
                 {
                     package_->pStream->prevDts_ = package_->pStream->curDts_;
                     package_->pStream->prevPts_ = package_->pStream->curPts_;
-                    package_->pStream->curDts_  = dts;
-                    package_->pStream->curPts_  = pts;
+                    package_->pStream->curDts_ = dts;
+                    package_->pStream->curPts_ = pts;
                 }
             }
             else
@@ -808,10 +835,10 @@ qint32 AVContext::parseTsPes()
         package_->packageTable.reset();
     }
 
-    if( package_->streaming )
+    if (package_->streaming)
     {
-        const quint8* data = payload_ + pos;
-        qint32 len = payloadLen_ - pos;
+        const uint8_t* data = payload_ + pos;
+        int32_t len = payloadLen_ - pos;
         package_->pStream->append(data, len, hasPts);
     }
     return AVCONTEXT_CONTINUE;

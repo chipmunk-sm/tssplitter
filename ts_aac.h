@@ -1,5 +1,5 @@
-#ifndef __ts_aac_h__
-#define __ts_aac_h__
+#ifndef TS_AAC_H
+#define TS_AAC_H
 
 #include "tsstream.h"
 #include "bitstream.h"
@@ -7,26 +7,29 @@
 class AAC : public TsStream
 {
 private:
-    qint32 sampleRate_;
-    qint32 channels_;
-    qint32 bitRate_;
-    qint32 frameSize_;
+    int32_t sampleRate_;
+    int32_t channels_;
+    int32_t bitRate_;
+    int32_t frameSize_;
 
-    qint64 PTS_;    // pts of the current frame
-    qint64 DTS_;    // dts of the current frame
+    int64_t PTS_;    // pts of the current frame
+    int64_t DTS_;    // dts of the current frame
 
     bool   configured_;
-    qint32 audioMuxVersion_A;
-    qint32 frameLengthType_;
+    int32_t audioMuxVersion_A;
+    int32_t frameLengthType_;
 
-    qint32 findHeaders(quint8* buf, qint32 bufSize);
+    int32_t findHeaders(uint8_t* buf, int32_t bufSize);
     bool parseLATMAudioMuxElement(BitStream* bs);
     void readStreamMuxConfig(BitStream* bs);
     void readAudioSpecificConfig(BitStream* bs);
-    quint32 LATMGetValue(BitStream* bs) { return bs->readBits(bs->readBits(2)*8); }
+    uint32_t LATMGetValue(BitStream* bs)
+    {
+        return bs->readBits(bs->readBits(2) * 8);
+    }
 
 public:
-    AAC(quint16 pesPid);
+    AAC(uint16_t pesPid);
     virtual ~AAC();
 
     virtual void parse(STREAM_PKG* pkg);
@@ -34,4 +37,4 @@ public:
 };
 
 
-#endif // __ts_aac_h__
+#endif // TS_AAC_H

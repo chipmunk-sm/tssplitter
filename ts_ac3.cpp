@@ -4,7 +4,7 @@
 #include <algorithm>      // for max
 
 #define AC3_HEADER_SIZE 7
-
+#include <QDebug>
 // Channel mode (audio coding mode)
 enum AC3ChannelMode
 {
@@ -19,19 +19,19 @@ enum AC3ChannelMode
 };
 
 // possible frequencies
-const quint16 AC3SampleRateTable[3] = { 48000, 44100, 32000 };
+const uint16_t AC3SampleRateTable[3] = { 48000, 44100, 32000 };
 
 // possible bitrates
-const quint16 AC3BitrateTable[19] = {
+const uint16_t AC3BitrateTable[19] = {
     32, 40, 48, 56, 64, 80, 96, 112, 128,
     160, 192, 224, 256, 320, 384, 448, 512, 576, 640
 };
 
-const quint8 AC3ChannelsTable[8] = {
+const uint8_t AC3ChannelsTable[8] = {
     2, 1, 2, 3, 3, 4, 4, 5
 };
 
-const quint16 AC3FrameSizeTable[38][3] = {
+const uint16_t AC3FrameSizeTable[38][3] = {
     { 64,   69,   96   },
     { 64,   70,   96   },
     { 80,   87,   120  },
@@ -72,135 +72,148 @@ const quint16 AC3FrameSizeTable[38][3] = {
     { 1280, 1394, 1920 },
 };
 
-const quint8 EAC3Blocks[4] = { 1, 2, 3, 6 };
+const uint8_t EAC3Blocks[4] = { 1, 2, 3, 6 };
 
-enum EAC3FrameType {
+enum EAC3FrameType
+{
     EAC3_FRAME_TYPE_INDEPENDENT = 0,
     EAC3_FRAME_TYPE_DEPENDENT,
     EAC3_FRAME_TYPE_AC3_CONVERT,
     EAC3_FRAME_TYPE_RESERVED
 };
 
-AC3::AC3(quint16 pid)
+AC3::AC3(uint16_t pid)
     : TsStream(pid)
 {
-    PTS_            = 0;
-    DTS_            = 0;
-    frameSize_      = 0;
-    sampleRate_     = 0;
-    channels_       = 0;
-    bitRate_        = 0;
-    esAllocInit_    = 1920*2;
+    PTS_ = 0;
+    DTS_ = 0;
+    frameSize_ = 0;
+    sampleRate_ = 0;
+    channels_ = 0;
+    bitRate_ = 0;
+    esAllocInit_ = 1920 * 2;
 }
 
 AC3::~AC3()
-{}
+{
+}
 
 void AC3::parse(STREAM_PKG* pkg)
 {
-    qint32 p = esParsed_, c;
-    while( (c = esLen_ - p) > 8 ) {
-        if( findHeaders(esBuf_ + p, c) < 0 )
+    int32_t ptrOffset = esParsed_;
+    int32_t remain;
+    while ((remain = esLen_ - ptrOffset) > 8)
+    {
+        if (findHeaders(esBuf_ + ptrOffset, remain) < 0)
             break;
-        p++;
+        ptrOffset++;
     }
-    esParsed_ = p;
+    esParsed_ = ptrOffset;
 
-    if( esFoundFrame_ && c >= frameSize_ )
+    if (esFoundFrame_ && remain >= frameSize_)
     {
         bool streamChange = setAudioInformation(channels_, sampleRate_, bitRate_, 0, 0);
-        pkg->pid            = pid_;
-        pkg->data           = &esBuf_[p];
-        pkg->size           = frameSize_;
-        pkg->duration       = 90000 * 1536 / sampleRate_;
-        pkg->dts            = DTS_;
-        pkg->pts            = PTS_;
-        pkg->streamChange   = streamChange;
+        pkg->pid = pid_;
+        pkg->data = &esBuf_[ptrOffset];
+        pkg->size = frameSize_;
+        pkg->duration = 90000 * 1536 / sampleRate_;
+        pkg->dts = DTS_;
+        pkg->pts = PTS_;
+        pkg->streamChange = streamChange;
 
-        esConsumed_ = p + frameSize_;
+        esConsumed_ = ptrOffset + frameSize_;
         esParsed_ = esConsumed_;
         esFoundFrame_ = false;
+//        qDebug() << "ptrOffset" << ptrOffset
+//                 << "pkg->pid" << pkg->pid
+//                 << "pkg->data" << pkg->data
+//                 << "pkg->size" << pkg->size
+//                 << "pkg->duration" << pkg->duration
+//                 << "pkg->dts" << pkg->dts
+//                 << "pkg->pts" << pkg->dts
+//                 << "pkg->streamChange" << pkg->streamChange
+//                    ;
     }
 }
 
-qint32 AC3::findHeaders(quint8* buf, qint32 bufSize)
+int32_t AC3::findHeaders(uint8_t* buf, int32_t bufSize)
 {
-    if( esFoundFrame_ || bufSize < 9 )
+    if (esFoundFrame_ || bufSize < 9)
         return -1;
 
-    quint8* bufPtr = buf;
-    if( (bufPtr[0] == 0x0b && bufPtr[1] == 0x77) )
+    uint8_t* bufPtr = buf;
+    if ((bufPtr[0] == 0x0b && bufPtr[1] == 0x77))
     {
-        BitStream bs(bufPtr+2, AC3_HEADER_SIZE*8);
+        BitStream bs(bufPtr + 2, AC3_HEADER_SIZE * 8);
 
         // read ahead to bsid to distinguish between AC-3 and E-AC-3
-        qint32 bsid = bs.showBits(29) & 0x1F;
-        if( bsid > 16 )
+        int32_t bsid = bs.showBits(29) & 0x1F;
+        if (bsid > 16)
             return 0;
 
-        if( bsid <= 10 )
+        if (bsid <= 10)
         {
             // Normal AC-3
             bs.skipBits(16);
-            qint32 fscod = bs.readBits(2);
-            qint32 frmsizecod  = bs.readBits(6);
+            int32_t fscod = bs.readBits(2);
+            int32_t frmsizecod = bs.readBits(6);
             bs.skipBits(5);         // skip bsid, already got it
             bs.skipBits(3);         // skip bitstream mode
-            qint32 acmod = bs.readBits(3);
+            int32_t acmod = bs.readBits(3);
 
-            if( fscod == 3 || frmsizecod > 37 )
+            if (fscod == 3 || frmsizecod > 37)
                 return 0;
 
-            if( acmod == AC3_CHMODE_STEREO )
+            if (acmod == AC3_CHMODE_STEREO)
             {
                 bs.skipBits(2);     // skip dsurmod
             }
             else
             {
-                if( (acmod & 1) && acmod != AC3_CHMODE_MONO )
+                if ((acmod & 1) && acmod != AC3_CHMODE_MONO)
                     bs.skipBits(2);
-                if( acmod & 4 )
+                if (acmod & 4)
                     bs.skipBits(2);
             }
-            qint32 lfeon = bs.readBits(1);
-            qint32 srShift = std::max(bsid,8) - 8;
+            int32_t lfeon = bs.readBits(1);
+            int32_t srShift = std::max(bsid, 8) - 8;
             sampleRate_ = AC3SampleRateTable[fscod] >> srShift;
-            bitRate_    = (AC3BitrateTable[frmsizecod>>1] * 1000) >> srShift;
-            channels_   = AC3ChannelsTable[acmod] + lfeon;
-            frameSize_  = AC3FrameSizeTable[frmsizecod][fscod] * 2;
+            bitRate_ = (AC3BitrateTable[frmsizecod >> 1] * 1000) >> srShift;
+            channels_ = AC3ChannelsTable[acmod] + lfeon;
+            frameSize_ = AC3FrameSizeTable[frmsizecod][fscod] * 2;
         }
         else
         {
             // Enhanced AC-3
-            qint32 frametype = bs.readBits(2);
-            if( frametype == EAC3_FRAME_TYPE_RESERVED )
+            int32_t frametype = bs.readBits(2);
+            if (frametype == EAC3_FRAME_TYPE_RESERVED)
                 return 0;
 
             bs.readBits(3); // int substreamid
 
             frameSize_ = (bs.readBits(11) + 1) << 1;
-            if( frameSize_ < AC3_HEADER_SIZE )
+            if (frameSize_ < AC3_HEADER_SIZE)
                 return 0;
 
-            qint32 numBlocks = 6;
-            qint32 sr_code = bs.readBits(2);
-            if( sr_code == 3 )
+            int32_t numBlocks = 6;
+            int32_t sr_code = bs.readBits(2);
+            if (sr_code == 3)
             {
-                qint32 sr_code2 = bs.readBits(2);
-                if( sr_code2 == 3 )
+                int32_t sr_code2 = bs.readBits(2);
+                if (sr_code2 == 3)
                     return 0;
-                sampleRate_ = AC3SampleRateTable[sr_code2]/2;
+                sampleRate_ = AC3SampleRateTable[sr_code2] / 2;
             }
             else
             {
-                numBlocks   = EAC3Blocks[bs.readBits(2)];
+                numBlocks = EAC3Blocks[bs.readBits(2)];
                 sampleRate_ = AC3SampleRateTable[sr_code];
             }
 
-            qint32 channelMode = bs.readBits(3);
-            qint32 lfeon = bs.readBits(1);
+            int32_t channelMode = bs.readBits(3);
+            int32_t lfeon = bs.readBits(1);
 
-            bitRate_  = (quint32)(8.0 * frameSize_ * sampleRate_ / (numBlocks * 256.0));
+            bitRate_ = (uint32_t)(8.0 * frameSize_ * sampleRate_ / (numBlocks * 256.0));
             channels_ = AC3ChannelsTable[channelMode] + lfeon;
         }
         esFoundFrame_ = true;

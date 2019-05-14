@@ -1,5 +1,5 @@
-#ifndef __tstable_h__
-#define __tstable_h__
+#ifndef TSTABLE_H
+#define TSTABLE_H
 
 #include <QString>
 
@@ -8,26 +8,29 @@
 
 struct TsTable
 {
-    quint8  tableId;
-    quint8  version;
-    quint16 id;
-    quint16 len;
-    quint16 offset;
-    quint8  buf[TABLE_BUFFER_SIZE];
+    uint8_t  tableId;
+    uint8_t  version;
+    uint16_t id;
+    uint16_t len;
+    uint16_t offset;
+    uint8_t  buf[TABLE_BUFFER_SIZE];
 
-    TsTable() 
-        : tableId(0xff), 
-        version(0xff), 
-        id(0xffff), 
-        len(0), 
+    TsTable()
+        : tableId(0xff),
+        version(0xff),
+        id(0xffff),
+        len(0),
         offset(0)
-    { memset(buf, 0, TABLE_BUFFER_SIZE); }
+    {
+        memset(buf, 0, TABLE_BUFFER_SIZE);
+    }
 
-    void reset(void) {
+    void reset(void)
+    {
         len = 0;
         offset = 0;
     }
 };
 
-#endif // __tstable_h__
+#endif // TSTABLE_H
 

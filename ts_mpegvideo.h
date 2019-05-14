@@ -1,5 +1,5 @@
-#ifndef __ts_mpegvideo_h__
-#define __ts_mpegvideo_h__
+#ifndef TS_MPEGVIDEO_H
+#define TS_MPEGVIDEO_H
 
 #include "tsstream.h"
 
@@ -7,31 +7,31 @@
 class MPEG2Video : public TsStream
 {
 private:
-    quint32 startCode_;
+    uint32_t startCode_;
     bool    needIFrame_;
     bool    needSPS_;
-    qint32  frameDuration_;
-    qint32  vbvDelay_;       // -1 if CBR
-    qint32  vbvSize_;        // Video buffer size (in bytes)
-    qint32  width_;
-    qint32  height_;
+    int32_t  frameDuration_;
+    int32_t  vbvDelay_;       // -1 if CBR
+    int32_t  vbvSize_;        // Video buffer size (in bytes)
+    int32_t  width_;
+    int32_t  height_;
     float   dar_;
-    qint64  DTS_, PTS_;
-    qint64  auDTS_, auPTS_, auPrevDTS_;
-    qint32  temporalReference_;
-    qint32  trLastTime_;
-    qint32  picNumber_;
+    int64_t  DTS_, PTS_;
+    int64_t  auDTS_, auPTS_, auPrevDTS_;
+    int32_t  temporalReference_;
+    int32_t  trLastTime_;
+    int32_t  picNumber_;
 
-    qint32 parse_MPEG2Video(quint32 startcode, qint32 bufPtr, bool& complete);
-    bool parse_MPEG2Video_SeqStart(quint8* buf);
-    bool parse_MPEG2Video_PicStart(quint8* buf);
+    int32_t parse_MPEG2Video(uint32_t startcode, int32_t bufPtr, bool& complete);
+    bool parse_MPEG2Video_SeqStart(uint8_t* buf);
+    bool parse_MPEG2Video_PicStart(uint8_t* buf);
 
-  public:
-    MPEG2Video(quint16 pid);
+public:
+    MPEG2Video(uint16_t pid);
     virtual ~MPEG2Video();
 
     virtual void parse(STREAM_PKG* pkg);
     virtual void reset();
 };
 
-#endif // __ts_mpegvideo_h__
+#endif // TS_MPEGVIDEO_H

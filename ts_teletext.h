@@ -1,14 +1,14 @@
-#ifndef __ts_teletext_h__
-#define __ts_teletext_h__
+#ifndef TS_TELETEXT_H
+#define TS_TELETEXT_H
 
 #include "tsstream.h"
 
 class Teletext : public TsStream
 {
 public:
-    Teletext(quint16 pid);
+    Teletext(uint16_t pid);
     virtual ~Teletext();
     virtual void parse(STREAM_PKG* pkg);
 };
 
-#endif // __ts_teletext_h__
+#endif // TS_TELETEXT_H

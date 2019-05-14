@@ -1,5 +1,5 @@
-#ifndef __tsstream_h
-#define __tsstream_h
+#ifndef TSSTREAM_H
+#define TSSTREAM_H
 
 #include <QString>
 
@@ -34,33 +34,33 @@ enum STREAM_TYPE
 
 struct STREAM_INFO
 {
-    quint16 channel;
-    quint16 pid;
+    uint16_t channel;
+    uint16_t pid;
     char    codecName[12];
     char    language[4];
-    qint32  compositionId;
-    qint32  ancillaryId;
-    qint32  fpsScale;
-    qint32  fpsRate;
-    qint32  height;
-    qint32  width;
-    float   aspect;
-    qint32  channels;
-    qint32  sampleRate;
-    qint32  blockAlign;
-    qint32  bitRate;
-    qint32  bitsPerSample;
+    int32_t  compositionId;
+    int32_t  ancillaryId;
+    int32_t  fpsScale;
+    int32_t  fpsRate;
+    int32_t  height;
+    int32_t  width;
+    double   aspect;
+    int32_t  channels;
+    int32_t  sampleRate;
+    int32_t  blockAlign;
+    int32_t  bitRate;
+    int32_t  bitsPerSample;
     bool    interlaced;
 };
 
 struct STREAM_PKG
 {
-    quint16         pid;
-    qint32          size;
-    const quint8*   data;
-    qint64          dts;
-    qint64          pts;
-    qint64          duration;
+    uint16_t         pid;
+    int32_t          size;
+    const uint8_t*   data;
+    int64_t          dts;
+    int64_t          pts;
+    int64_t          duration;
     bool            streamChange;
 };
 
@@ -72,48 +72,51 @@ public:
     STREAM_INFO streamInfo_;
     bool hasStreamInfo_;
 
-    quint16 pid_;
-    qint64  curDts_;
-    qint64  curPts_;
-    qint64  prevDts_;
-    qint64  prevPts_;
+    uint16_t pid_;
+    int64_t  curDts_;
+    int64_t  curPts_;
+    int64_t  prevDts_;
+    int64_t  prevPts_;
 
 public:
-    TsStream(quint16 pes_pid);
+    TsStream(uint16_t pes_pid);
     virtual ~TsStream();
 
     virtual void reset();
     void clearBuffer();
-    int append(const quint8* buf, qint32 len, bool newPts = false);
+    int append(const uint8_t* buf, int32_t len, bool newPts = false);
     virtual void parse(STREAM_PKG* pkg);
     static QString getStreamCodecName(STREAM_TYPE streamType);
     static QString getFileExtension(STREAM_TYPE streamType);
 
-    inline QString getStreamCodec() const 
-    { return getStreamCodecName(streamType_); }
+    inline QString getStreamCodec() const
+    {
+        return getStreamCodecName(streamType_);
+    }
 
-    inline bool getStreamPackage(STREAM_PKG* pkg) {
+    inline bool getStreamPackage(STREAM_PKG* pkg)
+    {
         resetStreamPackage(pkg);
         parse(pkg);
-        return (pkg->data != NULL);
+        return (pkg->data != nullptr);
     }
 
 protected:
     void resetStreamPackage(STREAM_PKG* pkg);
-    qint64 rescale(const qint64& a, const qint64& b, const qint64& c);
-    bool setVideoInformation(qint32 fpsScale, qint32 fpsRate, qint32 height, qint32 width, float aspect, bool Interlaced);
-    bool setAudioInformation(qint32 channels, qint32 sampleRate, qint32 bitRate, qint32 bitsPerSample, int blockAlign);
+    int64_t rescale(const int64_t& a, const int64_t& b, const int64_t& c);
+    bool setVideoInformation(int32_t fpsScale, int32_t fpsRate, int32_t height, int32_t width, float aspect, bool Interlaced);
+    bool setAudioInformation(int32_t channels, int32_t sampleRate, int32_t bitRate, int32_t bitsPerSample, int blockAlign);
 
 protected:
-    qint32  esAllocInit_;   // initial allocation of memory for buffer
-    quint8* esBuf_;         // pointer to buffer
-    qint32  esAlloc_;       // allocated size of memory for buffer
-    qint32  esLen_;         // size of data in buffer
-    qint32  esConsumed_;    // consumed payload. Will be erased on next append
-    qint32 esPtsPointer_;  // position in buffer where current PTS becomes applicable
-    qint32  esParsed_;      // parser: last processed position in buffer
+    int32_t  esAllocInit_;   // initial allocation of memory for buffer
+    uint8_t* esBuf_;         // pointer to buffer
+    int32_t  esAlloc_;       // allocated size of memory for buffer
+    int32_t  esLen_;         // size of data in buffer
+    int32_t  esConsumed_;    // consumed payload. Will be erased on next append
+    int32_t esPtsPointer_;  // position in buffer where current PTS becomes applicable
+    int32_t  esParsed_;      // parser: last processed position in buffer
     bool    esFoundFrame_;  // parser: found frame
 
 };
 
-#endif // __tsstream_h
+#endif // TSSTREAM_H

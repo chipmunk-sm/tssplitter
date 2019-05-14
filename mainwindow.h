@@ -1,45 +1,47 @@
-#ifndef __mainwindow_h__
-#define __mainwindow_h__
+
+#ifndef MAINWINDOW_H
+#define MAINWINDOW_H
 
 #include "tsparser.h"
-#include <QDialog>
+#include <QWidget>
 
-///////////////////////////////////////////////////////////////
-QT_BEGIN_NAMESPACE
 class QPushButton;
 class QProgressBar;
 class QTreeView;
 class QMutex;
-QT_END_NAMESPACE
-
 class InfoTreeModel;
-///////////////////////////////////////////////////////////////
-class MainWindow : public QDialog
+class QTextEdit;
+
+class MainWindow : public QWidget
 {
     Q_OBJECT
-
 public:
-    MainWindow();
+    MainWindow(QWidget *parent = nullptr);
+    ~MainWindow() override;
+    const QString m_supportedExt = "*.ts *.tp *.m2ts *.mts";
 
 private slots:
     void onOpenFiles();
-    void onStreamFound(const STREAM_INFO& streamInfo);
+    void onStreamFound(const STREAM_INFO& streamInfo, TsParser *self);
     void onNotifyError(const QString& info);
-    void onNotifyStart(qint32 threadId, const TsParser& parser);
-    void onNotifyDone(qint32 percent, qint32 threadId);
+    void onNotifyStart(Qt::HANDLE threadId, TsParser *parser);
+    void onNotifyDone(int32_t percent, Qt::HANDLE threadId);
 
 private:
-    void setup();
+    void OpenFiles(const QStringList & tsFiles);
 
-private:
-    QPushButton* btnOpenFile_;
-    InfoTreeModel* treeModel_;
-    QTreeView* treeView_;
-    QProgressBar* progress_;
+    QTextEdit* m_error = nullptr;
+    QTreeView*    m_treeView = nullptr;
+    QProgressBar* m_progress = nullptr;
+    QPushButton*  m_buttonOpenFile = nullptr;
 
-    typedef QMap<qint32,TsParser*> ParsersMapT;
-    ParsersMapT parsersMap_;
-    QSharedPointer<QMutex> guardParsers_;
+    std::map<Qt::HANDLE, TsParser*> m_parsersMap;
+    QSharedPointer<QMutex> m_lock;
+
+
+protected:
+    virtual void dropEvent(QDropEvent *event) override;
+    virtual void dragEnterEvent(QDragEnterEvent *event) override;
 };
 
-#endif // __mainwindow_h__
+#endif // MAINWINDOW_H
