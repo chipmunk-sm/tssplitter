@@ -50,7 +50,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     auto hlayout = new QHBoxLayout();
     hlayout->addWidget(m_progress);
-    hlayout->addWidget(m_buttonOpenFile, 0, Qt::AlignLeft);
+    hlayout->addWidget(m_buttonOpenFile, 0, Qt::AlignRight);
     hlayout->setContentsMargins(1, 1, 1, 1);
     hlayout->setMargin(1);
     hlayout->setSpacing(1);
