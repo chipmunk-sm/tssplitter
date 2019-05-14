@@ -1,13 +1,13 @@
 #include "tsstream.h"
 
 TsStream::TsStream(uint16_t pes_pid)
-    : pid_(pes_pid),
-    streamType_(STREAM_TYPE_UNKNOWN),
+    : streamType_(STREAM_TYPE_UNKNOWN),
+    hasStreamInfo_(false),
+    pid_(pes_pid),
     curDts_(PTS_UNSET),
     curPts_(PTS_UNSET),
     prevDts_(PTS_UNSET),
     prevPts_(PTS_UNSET),
-    hasStreamInfo_(false),
     esAllocInit_(ES_INIT_BUFFER_SIZE),
     esBuf_(nullptr),
     esAlloc_(0),
@@ -74,7 +74,7 @@ int TsStream::append(const uint8_t* buf, int32_t len, bool newPts)
 
         // realloc buffer size to n for stream with pid
         uint8_t* storeptr = esBuf_;
-        if (NULL == (esBuf_ = (uint8_t*)realloc(esBuf_, n * sizeof(*esBuf_))))
+        if (nullptr == (esBuf_ = (uint8_t*)realloc(esBuf_, n * sizeof(*esBuf_))))
         {
             free(storeptr);
             esAlloc_ = esLen_ = 0;
@@ -83,7 +83,7 @@ int TsStream::append(const uint8_t* buf, int32_t len, bool newPts)
         esAlloc_ = n;
     }
 
-    if (esBuf_ == NULL)
+    if (esBuf_ == nullptr)
         return -ENOMEM;
 
     memcpy(esBuf_ + esLen_, buf, len);
@@ -201,9 +201,9 @@ void TsStream::resetStreamPackage(STREAM_PKG* pkg)
 int64_t TsStream::rescale(const int64_t& a, const int64_t& b, const int64_t& c)
 {
     quint64 r = c / 2;
-    quint64 res = (a <= INT_MAX ? ((a*b + r) / c) : (a / c * b + ((a%c)*b + r) / c));
+    quint64 res = (a <= std::numeric_limits<int32_t>::max() ? ((a*b + r) / c) : (a / c * b + ((a%c)*b + r) / c));
 
-    if (b > INT_MAX || c > INT_MAX)
+    if (b > std::numeric_limits<int32_t>::max() || c > std::numeric_limits<int32_t>::max())
     {
         quint64 a0 = a & 0xFFFFFFFF;
         quint64 a1 = a >> 32;

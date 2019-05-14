@@ -148,7 +148,7 @@ inline bool AVContext::hasPIDPayload() const
 inline TsStream* AVContext::getPIDStream() const
 {
     QMutexLocker lock(csMutex_);
-    return (package_ != nullptr && package_->packageType == PACKAGE_TYPE_PES ? package_->pStream : NULL);
+    return (package_ != nullptr && package_->packageType == PACKAGE_TYPE_PES ? package_->pStream : nullptr);
 }
 
 inline TsStream* AVContext::getStream(uint16_t pid) const

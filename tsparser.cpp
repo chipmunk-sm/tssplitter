@@ -282,7 +282,7 @@ void TsParser::showStreamInfo(uint16_t pid)
 
     es->streamInfo_.pid = pid;
     es->streamInfo_.channel = AVContext_->getChannel(pid);
-    strcpy_s(es->streamInfo_.codecName, sizeof(es->streamInfo_.codecName), es->getStreamCodec().toStdString().c_str());
+    strcpy(es->streamInfo_.codecName, es->getStreamCodec().toStdString().c_str());
     emit streamFound(es->streamInfo_, this);
 }
 

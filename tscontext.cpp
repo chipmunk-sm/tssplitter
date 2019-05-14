@@ -11,7 +11,8 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 AVContext::AVContext(TsParser& parser, const int64_t& pos, uint16_t channel)
-    : parser_(parser),
+    : csMutex_(new QMutex()),
+    parser_(parser),
     avPos_(pos),
     avDataLen_(FLUTS_NORMAL_TS_PACKAGESIZE),
     avPkgSize_(0),
@@ -24,8 +25,7 @@ AVContext::AVContext(TsParser& parser, const int64_t& pos, uint16_t channel)
     discontinuity_(false),
     payload_(nullptr),
     payloadLen_(0),
-    package_(nullptr),
-    csMutex_(new QMutex())
+    package_(nullptr)
 {
     memset(avBuf_, 0, sizeof(avBuf_));
 }
@@ -45,9 +45,9 @@ void AVContext::reset()
     hasPayload_ = false;
     payloadUnitStart_ = false;
     discontinuity_ = false;
-    payload_ = NULL;
+    payload_ = nullptr;
     payloadLen_ = 0;
-    package_ = NULL;
+    package_ = nullptr;
 }
 
 QVector<TsStream*> AVContext::getStreams() const
@@ -57,7 +57,7 @@ QVector<TsStream*> AVContext::getStreams() const
     QVector<TsStream*> v;
     QMap<uint16_t, TsPackage>::const_iterator It = packages_.begin();
     for (; It != packages_.end(); ++It)
-        if (It->packageType == PACKAGE_TYPE_PES && It->pStream != NULL)
+        if (It->packageType == PACKAGE_TYPE_PES && It->pStream != nullptr)
             v.push_back(It->pStream);
     return v;
 }
@@ -267,7 +267,7 @@ int32_t AVContext::processTSPackage()
     // Cleaning context
     discontinuity_ = false;
     hasPayload_ = false;
-    payload_ = NULL;
+    payload_ = nullptr;
     payloadLen_ = 0;
 
     if (transportError_)
