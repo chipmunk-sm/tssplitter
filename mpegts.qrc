@@ -1,3 +1,5 @@
 <RCC>
-    <qresource prefix="/"/>
+    <qresource prefix="/">
+        <file>tssplitter_logo.svg</file>
+    </qresource>
 </RCC>

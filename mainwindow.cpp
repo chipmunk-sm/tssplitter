@@ -13,6 +13,7 @@ MainWindow::MainWindow(QWidget *parent)
     , m_lock(new QMutex())
 {
     setWindowTitle(tr("TS Streams Extractor"));
+    setWindowIcon(QPixmap(":/tssplitter_logo.svg"));
 
     setWindowModality(Qt::WindowModality::ApplicationModal);
     setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
